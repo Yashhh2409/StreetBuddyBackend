@@ -3,7 +3,6 @@ const bodyParser = require('body-parser');
 const db = require("./config/DB.js"); 
 const { v4: uuidv4 } = require('uuid');
 
-
 const app = express();
 const port = process.env.PORT || 8000;
 
@@ -15,19 +14,31 @@ app.post('/add-history', (req, res) => {
   const visits = req.body.visits;
   const user_id = req.body.user_id || uuidv4(); // If user_id is not provided, generate a new one
 
-  visits.forEach(visit => {
+  // Create an array of promises for each database insert
+  const insertPromises = visits.map(visit => {
     const { url, title, category, visitTime, duration } = visit;
-    const query = `INSERT INTO browser_history (user_id, url, title, category, visit_time, duration) VALUES (?, ?, ?, ?, ?, ?)`;
+    const query = `INSERT INTO browser_history (user_id, url, title, category, visitTime, duration) VALUES (?, ?, ?, ?, ?, ?)`;
 
-    db.query(query, [user_id, url, title, category, visitTime, duration], (err, result) => {
-      if (err) {
-        console.error('Error inserting data:', err);
-        return res.status(500).json({ message: 'Error inserting data' });
-      }
+    return new Promise((resolve, reject) => {
+      db.query(query, [user_id, url, title, category, visitTime, duration], (err, result) => {
+        if (err) {
+          console.error('Error inserting data:', err);
+          reject('Error inserting data');
+        } else {
+          resolve(result);
+        }
+      });
     });
   });
 
-  res.status(200).json({ message: 'Data inserted successfully' });
+  // Wait for all insertions to complete
+  Promise.all(insertPromises)
+    .then(() => {
+      res.status(200).json({ message: 'Data inserted successfully' });
+    })
+    .catch((err) => {
+      res.status(500).json({ message: err });
+    });
 });
 
 // Start the server
