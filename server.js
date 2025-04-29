@@ -35,7 +35,7 @@ app.post('/add-history', (req, res) => {
     // Prepare browser history insertions
     const insertHistoryPromises = visits.map(visit => {
       const query = `
-        INSERT INTO browser_history (user_id, url, title, category, visit_time, duration)
+        INSERT INTO browser_history (user_id, url, title, category, visitTime, duration)
         VALUES (?, ?, ?, ?, ?, ?)
       `;
       return new Promise((resolve, reject) => {
