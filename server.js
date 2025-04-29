@@ -11,35 +11,45 @@ app.use(bodyParser.json());
 
 // POST API to add browser history
 app.post('/add-history', (req, res) => {
-  const visits = req.body.visits;
-  const user_id = req.body.user_id || uuidv4(); // If user_id is not provided, generate a new one
+  const { user, visits } = req.body;
 
-  // Create an array of promises for each database insert
-  const insertPromises = visits.map(visit => {
-    const { url, title, category, visitTime, duration } = visit;
-    const query = `INSERT INTO browser_history (user_id, url, title, category, visitTime, duration) VALUES (?, ?, ?, ?, ?, ?)`;
+  // Insert user if not exists
+  const insertUserQuery = `
+    INSERT INTO users (id, name, email) VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE name = VALUES(name), email = VALUES(email)
+  `;
 
-    return new Promise((resolve, reject) => {
-      db.query(query, [user_id, url, title, category, visitTime, duration], (err, result) => {
-        if (err) {
-          console.error('Error inserting data:', err);
-          reject('Error inserting data');
-        } else {
-          resolve(result);
-        }
+  db.query(insertUserQuery, [user.id, user.name, user.email], (err) => {
+    if (err) return res.status(500).json({ message: 'Error inserting user' });
+
+    // Prepare history insertions
+    const insertHistoryPromises = visits.map(visit => {
+      const query = `
+        INSERT INTO browser_history (user_id, url, title, category, visit_time, duration)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      return new Promise((resolve, reject) => {
+        db.query(query, [
+          user.id,
+          visit.url,
+          visit.title,
+          visit.category,
+          visit.visitTime,
+          visit.duration
+        ], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
       });
     });
-  });
 
-  // Wait for all insertions to complete
-  Promise.all(insertPromises)
-    .then(() => {
-      res.status(200).json({ message: 'Data inserted successfully' });
-    })
-    .catch((err) => {
-      res.status(500).json({ message: err });
-    });
+    // Execute all insertions
+    Promise.all(insertHistoryPromises)
+      .then(() => res.status(200).json({ message: 'Data inserted successfully' }))
+      .catch(() => res.status(500).json({ message: 'Error inserting browser history' }));
+  });
 });
+
 
 // Start the server
 app.listen(port, () => {
